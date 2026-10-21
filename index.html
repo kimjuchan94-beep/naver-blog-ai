@@ -210,7 +210,7 @@
 
         localStorage.setItem('my_gemini_key', apiKey);
 
-        outputDiv.innerText = `🤖 AI가 ${imageList.length}장의 사진을 분석 중입니다... 잠시만 기다려주세요!`;
+        outputDiv.innerText = `🤖 AI가 최신 3.8 모델로 ${imageList.length}장의 사진을 분석 중입니다... 잠시만 기다려주세요!`;
         resultArea.style.display = 'block';
 
         const systemInstruction = `당신은 네이버 블로그 검색 알고리즘(C-Rank, 다이아+)의 특성을 완벽히 이해하고 상위 노출을 잘 하는 5년 차 베테랑 파워블로거입니다. 
@@ -237,8 +237,8 @@
 
         const requestData = { contents: [{ parts }] };
         
-        // 최신 표준 gemini-2.0-flash 모델 호출
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        // 구글 공식 최신 권장 모델 gemini-3.8-flash 적용
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
         try {
             const response = await fetch(url, {
