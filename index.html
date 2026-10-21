@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 네이버 블로그 생성기</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: #f4f7f6; color: #333; line-height: 1.5; padding: 10px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h1 { font-size: 20px; color: #03c75a; margin-bottom: 15px; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 6px; color: #555; font-size: 14px; }
+        input[type="password"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        
+        .upload-btn { 
+            display: block; 
+            width: 100%;
+            border: 2px dashed #03c75a; 
+            padding: 35px 15px; 
+            text-align: center; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            background: #fafafa; 
+            color: #03c75a; 
+            font-weight: bold;
+            font-size: 15px;
+            -webkit-appearance: none;
+        }
+
+        #imageFile { display: none; }
+        
+        .preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .preview-item {
+            position: relative;
+            width: 75px;
+            height: 75px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+            background-color: #eee;
+            flex-shrink: 0;
+        }
+        .preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .badge {
+            position: absolute;
+            bottom: 3px;
+            left: 3px;
+            background: rgba(3, 199, 90, 0.9);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button.main-btn { background-color: #03c75a; color: white; border: none; padding: 14px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; }
+        .result-box { margin-top: 25px; border-top: 2px solid #eee; padding-top: 15px; }
+        .result-content { background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd; white-space: pre-wrap; min-height: 180px; font-size: 13px; line-height: 1.6; }
+        .copy-btn { margin-top: 10px; background-color: #333; color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📸 AI 네이버 블로그 생성기</h1>
+    
+    <div class="form-group">
+        <label for="apiKey">Gemini API Key</label>
+        <input type="password" id="apiKey" placeholder="API 키를 입력하세요">
+    </div>
+
+    <div class="form-group">
+        <label>사진 업로드 (여러 장 가능)</label>
+        <label class="upload-btn" id="uploadLabel">
+            📂 터치해서 사진 여러 장 선택하기
+            <input type="file" id="imageFile" accept="image/*" multiple style="display:none;">
+        </label>
+        <div class="preview-container" id="previewContainer"></div>
+    </div>
+
+    <div class="form-group">
+        <label for="prompt">추가 요청사항 및 키워드 (선택)</label>
+        <textarea id="prompt" rows="3" placeholder="예: 맛집 리뷰, 친절한 어조. Key: 화정동 맛집"></textarea>
+    </div>
+
+    <button class="main-btn" onclick="generateBlog()">AI 블로그 포스팅 생성하기 🚀</button>
+
+    <div class="result-box" id="resultArea" style="display:none;">
+        <label>생성된 블로그 글 (사진 위치 포함)</label>
+        <div class="result-content" id="output"></div>
+        <button class="copy-btn" onclick="copyResult()">내용 복사하기</button>
+    </div>
+</div>
+
+<script>
+    let imageList = [];
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const savedKey = localStorage.getItem('my_gemini_key');
+        if (savedKey) {
+            document.getElementById('apiKey').value = savedKey;
+        }
+        rebindInput();
+    });
+
+    function handleFiles(files) {
+        Array.from(files).forEach(file => {
+            if (!file.type.startsWith('image/')) {
+                alert(`${file.name} 은(는) 이미지 파일이 아닙니다.`);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const base64Data = event.target.result.split(',')[1];
+                imageList.push({
+                    name: file.name,
+                    mimeType: file.type,
+                    base64: base64Data,
+                    previewUrl: event.target.result
+                });
+                renderPreviews();
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function renderPreviews() {
+        const container = document.getElementById('previewContainer');
+        const uploadLabel = document.getElementById('uploadLabel');
+        container.innerHTML = '';
+
+        imageList.forEach((img, index) => {
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+            item.innerHTML = `
+                <img src="${img.previewUrl}" alt="미리보기">
+                <div class="badge">${index + 1}번</div>
+                <button class="remove-btn" type="button" onclick="removeImage(${index})">✕</button>
+            `;
+            container.appendChild(item);
+        });
+
+        if (imageList.length > 0) {
+            uploadLabel.innerHTML = `📂 총 ${imageList.length}장의 사진 선택됨 (터치하여 추가 선택)<input type="file" id="imageFile" accept="image/*" multiple style="display:none;">`;
+        } else {
+            uploadLabel.innerHTML = `📂 터치해서 사진 여러 장 선택하기<input type="file" id="imageFile" accept="image/*" multiple style="display:none;">`;
+        }
+        rebindInput();
+    }
+
+    function rebindInput() {
+        const imageInput = document.getElementById('imageFile');
+        if (imageInput) {
+            imageInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    handleFiles(e.target.files);
+                    imageInput.value = '';
+                }
+            });
+        }
+    }
+
+    function removeImage(index) {
+        imageList.splice(index, 1);
+        renderPreviews();
+    }
+
+    async function generateBlog() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const userPrompt = document.getElementById('prompt').value.trim();
+        const outputDiv = document.getElementById('output');
+        const resultArea = document.getElementById('resultArea');
+
+        if (!apiKey) {
+            alert("Gemini API 키를 입력해주세요!");
+            return;
+        }
+        if (imageList.length === 0) {
+            alert("블로그에 쓸 사진을 1장 이상 업로드해주세요!");
+            return;
+        }
+
+        localStorage.setItem('my_gemini_key', apiKey);
+
+        outputDiv.innerText = `🤖 안정적인 서버 모델로 ${imageList.length}장의 사진을 분석 중입니다... 잠시만 기다려주세요!`;
+        resultArea.style.display = 'block';
+
+        const systemInstruction = `당신은 네이버 블로그 검색 알고리즘(C-Rank, 다이아+)의 특성을 완벽히 이해하고 상위 노출을 잘 하는 5년 차 베테랑 파워블로거입니다. 
+글을 작성하기 전, 반드시 다음 [저품질 회피 및 사진 배치 가이드라인]을 엄격하게 준수하여 글을 작성하세요.
+
+[저품질 회피 및 사진 배치 가이드라인]
+1. 사진 위치 매칭 표시: 업로드된 사진들의 순서(1번, 2번...)에 맞춰, 본문 내용 중 해당 사진에 대한 설명이 나오는 흐름에 맞게 **[사진 1 위치]**, **[사진 2 위치]** 처럼 정확한 번호로 가이드 표시를 문단 사이에 반드시 삽입하세요.
+2. AI 티 절대 안 내기: 딱딱한 문어체, 과도한 이모지 반복을 금지합니다.
+3. 완벽한 구어체 사용: 실제 사람이 혼잣말을 하듯 자연스러운 어조(~더라고요, ~했음!, ~강추함 등)를 사용하세요.
+4. 경험 중심 스토리텔링: 사진 속 디테일을 바탕으로 '생생한 후기' 느낌을 극대화하세요.
+5. 해시태그: 하단에 5~7개의 해시태그를 필수로 남겨주세요.`;
+
+        const parts = [{ text: systemInstruction + "\n\n추가 요청사항: " + userPrompt }];
+        
+        imageList.forEach((img, i) => {
+            parts.push({ text: `\n[사진 ${i + 1}번]` });
+            parts.push({
+                inline_data: {
+                    mime_type: img.mimeType,
+                    data: img.base64
+                }
+            });
+        });
+
+        const requestData = { contents: [{ parts }] };
+        
+        // 안정적인 gemini-1.5-flash 모델 호출
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.candidates && data.candidates[0].content) {
+                const text = data.candidates[0].content.parts[0].text;
+                outputDiv.innerText = text;
+            } else {
+                outputDiv.innerText = "❌ 오류 발생:\n" + JSON.stringify(data, null, 2);
+            }
+        } catch (error) {
+            outputDiv.innerText = "❌ 통신 에러 발생:\n" + error.message;
+        }
+    }
+
+    function copyResult() {
+        const text = document.getElementById('output').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            alert("내용이 복사되었습니다!");
+        });
+    }
+</script>
+
+</body>
+</html>
