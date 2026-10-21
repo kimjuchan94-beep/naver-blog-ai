@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 네이버 블로그 생성기 (Multi-AI)</title>
+    <title>AI 네이버 블로그 생성기 (Auto-Compress)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
         body { background-color: #f4f7f6; color: #333; line-height: 1.5; padding: 10px; }
@@ -90,7 +90,7 @@
 <body>
 
 <div class="container">
-    <h1>📸 AI 네이버 블로그 생성기 (Multi-AI)</h1>
+    <h1>📸 AI 네이버 블로그 생성기</h1>
     
     <div class="form-group">
         <label for="apiKey">AI API Key (Gemini / Claude / ChatGPT 자동 인식)</label>
@@ -132,6 +132,7 @@
         rebindInput();
     });
 
+    // 💡 [자동 압축 및 리사이징 핵심 함수] 업로드된 사진을 가로 최대 1024px로 줄여서 가볍게 만듦
     function handleFiles(files) {
         Array.from(files).forEach(file => {
             if (!file.type.startsWith('image/')) {
@@ -141,14 +142,43 @@
 
             const reader = new FileReader();
             reader.onload = function(event) {
-                const base64Data = event.target.result.split(',')[1];
-                imageList.push({
-                    name: file.name,
-                    mimeType: file.type,
-                    base64: base64Data,
-                    previewUrl: event.target.result
-                });
-                renderPreviews();
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    const MAX_SIZE = 1024; // 최대 크기 제한
+                    if (width > height) {
+                        if (width > MAX_SIZE) {
+                            height *= MAX_SIZE / width;
+                            width = MAX_SIZE;
+                        }
+                    } else {
+                        if (height > MAX_SIZE) {
+                            width *= MAX_SIZE / height;
+                            height = MAX_SIZE;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 화질 80% JPEG로 압축 (용량을 획기적으로 줄여줌)
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    const base64Data = compressedDataUrl.split(',')[1];
+                    
+                    imageList.push({
+                        name: file.name,
+                        mimeType: 'image/jpeg',
+                        base64: base64Data,
+                        previewUrl: compressedDataUrl
+                    });
+                    renderPreviews();
+                };
+                img.src = event.target.result;
             };
             reader.readAsDataURL(file);
         });
@@ -224,9 +254,9 @@
 5. 해시태그: 하단에 5~7개의 해시태그를 필수로 남겨주세요.`;
 
         try {
-            // 1. GEMINI API 감지 (AIza로 시작)
+            // 1. GEMINI API 감지
             if (apiKey.startsWith('AIza')) {
-                outputDiv.innerText = `🤖 [Gemini] ${imageList.length}장의 사진을 분석하여 글을 작성 중입니다...`;
+                outputDiv.innerText = `🤖 [Gemini] 압축된 ${imageList.length}장의 사진을 분석하여 글을 작성 중입니다...`;
                 
                 const parts = [{ text: systemInstruction + "\n\n추가 요청사항: " + userPrompt }];
                 imageList.forEach((img, i) => {
@@ -249,9 +279,9 @@
                 }
 
             } 
-            // 2. CLAUDE API 감지 (sk-ant-로 시작)
+            // 2. CLAUDE API 감지
             else if (apiKey.startsWith('sk-ant-')) {
-                outputDiv.innerText = `🤖 [Claude] ${imageList.length}장의 사진을 분석하여 글을 작성 중입니다...`;
+                outputDiv.innerText = `🤖 [Claude] 압축된 ${imageList.length}장의 사진을 분석하여 글을 작성 중입니다...`;
 
                 const contentBlocks = [];
                 imageList.forEach((img, i) => {
@@ -287,9 +317,9 @@
                 }
 
             } 
-            // 3. OPENAI (ChatGPT) API 감지 (sk-로 시작)
+            // 3. OPENAI (ChatGPT) API 감지
             else if (apiKey.startsWith('sk-')) {
-                outputDiv.innerText = `🤖 [ChatGPT] ${imageList.length}장의 사진을 분석하여 글을 작성 중입니다...`;
+                outputDiv.innerText = `🤖 [ChatGPT] 압축된 ${imageList.length}장의 사진을 분석하여 글을 작성 중입니다...`;
 
                 const contentArray = [
                     { type: "text", text: systemInstruction + "\n\n추가 요청사항: " + userPrompt }
